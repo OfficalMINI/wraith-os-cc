@@ -897,6 +897,30 @@ function svc.main(state, config, utils)
 
                 elseif protocol == proto.station_command and type(msg) == "table" then
                     -- Schedule management commands from station clients
+                    -- target_id: hub sends target_id to manage schedules for remote stations
+                    local target = msg.target_id or sender
+
+                    -- Helper: build schedule reply (flat all-stations list for hub, per-station for remote)
+                    local function sched_reply(use_all)
+                        if use_all then
+                            local all = {}
+                            for sid, scheds in pairs(tr.station_schedules) do
+                                local st = tr.stations[sid]
+                                local lbl = st and st.label or ("Station #" .. sid)
+                                for i, sched in ipairs(scheds) do
+                                    local entry = {}
+                                    for k, v in pairs(sched) do entry[k] = v end
+                                    entry.target_id = sid
+                                    entry.target_label = lbl
+                                    entry.orig_idx = i
+                                    table.insert(all, entry)
+                                end
+                            end
+                            return all
+                        end
+                        return tr.station_schedules[target] or {}
+                    end
+
                     if msg.action == "get_allow_list" then
                         rednet.send(sender, {
                             action = "allow_list",
@@ -906,11 +930,11 @@ function svc.main(state, config, utils)
                     elseif msg.action == "get_schedules" then
                         rednet.send(sender, {
                             action = "schedules",
-                            schedules = tr.station_schedules[sender] or {},
+                            schedules = sched_reply(msg.all),
                         }, proto.station_command)
 
                     elseif msg.action == "add_schedule" and msg.schedule then
-                        local ok = tr.add_schedule(sender, msg.schedule)
+                        local ok = tr.add_schedule(target, msg.schedule)
                         rednet.send(sender, {
                             action = ok and "schedule_ok" or "schedule_error",
                             message = ok and "Schedule added" or "Failed to add",
@@ -918,12 +942,12 @@ function svc.main(state, config, utils)
                         if ok then
                             rednet.send(sender, {
                                 action = "schedules",
-                                schedules = tr.station_schedules[sender] or {},
+                                schedules = sched_reply(msg.all),
                             }, proto.station_command)
                         end
 
                     elseif msg.action == "toggle_schedule" and msg.idx then
-                        local ok = tr.toggle_schedule(sender, msg.idx)
+                        local ok = tr.toggle_schedule(target, msg.idx)
                         rednet.send(sender, {
                             action = ok and "schedule_ok" or "schedule_error",
                             message = ok and "Toggled" or "Not found",
@@ -931,12 +955,12 @@ function svc.main(state, config, utils)
                         if ok then
                             rednet.send(sender, {
                                 action = "schedules",
-                                schedules = tr.station_schedules[sender] or {},
+                                schedules = sched_reply(msg.all),
                             }, proto.station_command)
                         end
 
                     elseif msg.action == "remove_schedule" and msg.idx then
-                        local ok = tr.remove_schedule(sender, msg.idx)
+                        local ok = tr.remove_schedule(target, msg.idx)
                         rednet.send(sender, {
                             action = ok and "schedule_ok" or "schedule_error",
                             message = ok and "Removed" or "Not found",
@@ -944,12 +968,12 @@ function svc.main(state, config, utils)
                         if ok then
                             rednet.send(sender, {
                                 action = "schedules",
-                                schedules = tr.station_schedules[sender] or {},
+                                schedules = sched_reply(msg.all),
                             }, proto.station_command)
                         end
 
                     elseif msg.action == "update_schedule" and msg.idx and msg.field then
-                        local ok = tr.update_schedule(sender, msg.idx, msg.field, msg.value)
+                        local ok = tr.update_schedule(target, msg.idx, msg.field, msg.value)
                         rednet.send(sender, {
                             action = ok and "schedule_ok" or "schedule_error",
                             message = ok and "Updated" or "Not found",
@@ -957,12 +981,12 @@ function svc.main(state, config, utils)
                         if ok then
                             rednet.send(sender, {
                                 action = "schedules",
-                                schedules = tr.station_schedules[sender] or {},
+                                schedules = sched_reply(msg.all),
                             }, proto.station_command)
                         end
 
                     elseif msg.action == "run_schedule" and msg.idx then
-                        local scheds = tr.station_schedules[sender]
+                        local scheds = tr.station_schedules[target]
                         if scheds and scheds[msg.idx] then
                             local sched = scheds[msg.idx]
                             local reqs = {}
@@ -972,7 +996,7 @@ function svc.main(state, config, utils)
                                     table.insert(reqs, {item = item_name, amount = amt})
                                 end
                             end
-                            local ok, err = tr.execute_trip(sender, sched.type, reqs)
+                            local ok, err = tr.execute_trip(target, sched.type, reqs)
                             if ok then
                                 sched.last_run = math.floor(os.epoch("utc") / 1000)
                                 save_transport_data()

@@ -29,6 +29,9 @@ local CLIENTS = {
 local function make_bootstrapper(label)
     return '-- Wraith OS Provisioner - Auto-install\n'
         .. '-- This floppy installs a client to any computer placed on this drive\n'
+        .. 'if _G.WRAITH_ROOT or fs.exists("wraith/system/boot.lua") or fs.exists("system/boot.lua") then\n'
+        .. '    return\n'
+        .. 'end\n'
         .. 'local mount = fs.getDir(shell.getRunningProgram())\n'
         .. 'local src = "/" .. mount .. "/client.lua"\n'
         .. 'if not fs.exists(src) then\n'
