@@ -369,13 +369,14 @@ function svc.main(state, config, utils)
 
     tr.register_station = function(sender_id, data)
         local existing = tr.stations[sender_id]
+        local was_hub = (existing and existing.is_hub) or false
         tr.stations[sender_id] = {
             id = sender_id,
             label = data.label or ("Station " .. sender_id),
             x = data.x or 0,
             y = data.y or 0,
             z = data.z or 0,
-            is_hub = existing and existing.is_hub or false,
+            is_hub = was_hub or data.is_hub or false,
             online = true,
             last_seen = os.clock(),
             rules = existing and existing.rules or {},
@@ -388,7 +389,11 @@ function svc.main(state, config, utils)
             integrators = data.integrators or (existing and existing.integrators) or {},
             has_train = data.has_train or false,
         }
-        if tr.hub_id == sender_id then
+        -- Auto-set hub if station declares itself as hub
+        if data.is_hub and not tr.hub_id then
+            tr.hub_id = sender_id
+            tr.stations[sender_id].is_hub = true
+        elseif tr.hub_id == sender_id then
             tr.stations[sender_id].is_hub = true
         end
         save_transport_data()
@@ -784,6 +789,9 @@ function svc.main(state, config, utils)
     -- ========================================
     -- Main Event Loop
     -- ========================================
+
+    -- Host on station ping protocol so station clients can discover Wraith
+    rednet.host(proto.station_ping, "wraith_rail_hub")
 
     local TICK_INTERVAL = cfg.status_interval or 5
     local tick_timer = os.startTimer(TICK_INTERVAL)

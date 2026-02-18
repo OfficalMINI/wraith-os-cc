@@ -188,8 +188,7 @@ local function render_items(ctx, buf, x, y, w, h)
     draw.fill(buf, y, x + w, theme.surface2)
     draw.put(buf, x + 1, y, "ITEM", theme.fg_dim, theme.surface2)
     draw.put(buf, x + 22, y, "STOCK", theme.fg_dim, theme.surface2)
-    draw.put(buf, x + 32, y, "KEEP", theme.fg_dim, theme.surface2)
-    draw.put(buf, x + 42, y, "AVAIL", theme.fg_dim, theme.surface2)
+    draw.put(buf, x + 30, y, "- KEEP +", theme.fg_dim, theme.surface2)
     y = y + 1
 
     draw.put(buf, x, y, string.rep("\140", w), theme.border, theme.surface)
@@ -211,13 +210,13 @@ local function render_items(ctx, buf, x, y, w, h)
             if ctx.state.storage.output_stock then
                 stock = ctx.state.storage.output_stock[ai.item] or 0
             end
-            local avail = math.max(0, stock - ai.min_keep)
             local stock_col = stock > ai.min_keep and theme.success or (stock > 0 and theme.warning or theme.danger)
 
             draw.put(buf, x + 1, y, (ai.display_name or "?"):sub(1, 20), theme.fg, bg)
             draw.put(buf, x + 22, y, utils.format_number(stock), stock_col, bg)
-            draw.put(buf, x + 32, y, utils.format_number(ai.min_keep), theme.fg_dim, bg)
-            draw.put(buf, x + 42, y, utils.format_number(avail), avail > 0 and theme.success or theme.fg_dim, bg)
+            draw.put(buf, x + 28, y, "[-]", theme.danger, bg)
+            draw.put(buf, x + 32, y, string.format("%5d", ai.min_keep), theme.fg, bg)
+            draw.put(buf, x + 38, y, "[+]", theme.success, bg)
 
             -- Remove button
             draw.put(buf, x + w - 2, y, "X", theme.danger, bg)
@@ -796,11 +795,9 @@ function app.main(ctx)
                     picker_query = ""
                     picker_scroll = 0
                 elseif picker_hits.search_bar and draw.hit_test(picker_hits.search_bar, tx, ty) then
-                    local input = ctx.prompt("Search item:", picker_query)
-                    if input then
-                        picker_query = input
-                        picker_scroll = 0
-                    end
+                    -- Search bar clicked — just clear query; typing handles input via char events
+                    picker_query = ""
+                    picker_scroll = 0
                 elseif picker_hits.confirm and draw.hit_test(picker_hits.confirm, tx, ty) then
                     if picker_selected and picker_mode == "allow_item" then
                         if tr.add_allowed_item then
@@ -908,17 +905,19 @@ function app.main(ctx)
                                     tr.remove_allowed_item(row.idx)
                                 end
                             else
-                                -- Click on min_keep column to edit
-                                if tx >= 31 and tx <= 40 then
+                                -- [-] button: decrease min_keep by 16
+                                if tx >= 29 and tx <= 31 then
                                     local ai = tr.allowed_items[row.idx]
-                                    if ai then
-                                        local input = ctx.prompt("Min keep for " .. ai.display_name .. ":", tostring(ai.min_keep))
-                                        if input then
-                                            local val = tonumber(input)
-                                            if val and val >= 0 then
-                                                tr.update_allowed_item(row.idx, "min_keep", val)
-                                            end
-                                        end
+                                    if ai and tr.update_allowed_item then
+                                        local new_val = math.max(0, (ai.min_keep or 0) - 16)
+                                        tr.update_allowed_item(row.idx, "min_keep", new_val)
+                                    end
+                                -- [+] button: increase min_keep by 16
+                                elseif tx >= 39 and tx <= 41 then
+                                    local ai = tr.allowed_items[row.idx]
+                                    if ai and tr.update_allowed_item then
+                                        local new_val = (ai.min_keep or 0) + 16
+                                        tr.update_allowed_item(row.idx, "min_keep", new_val)
                                     end
                                 end
                             end
