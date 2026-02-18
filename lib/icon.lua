@@ -157,4 +157,12 @@ icon.icons.transport = {
     {" \143 \143 \143 ",            "f8f8f8f", "fffffff"},     -- rail ties
 }
 
+-- Provisioner: floppy disk (7x4) - yellow label on gray body
+icon.icons.provisioner = {
+    {"\151\140\131\131\140\140\148", "8888888", "fffffff"},     -- top frame + label notch
+    {"\149 \131\131\131 \149",       "8444448", "8777778"},     -- disk body (yellow label)
+    {"\149  \143  \149",             "8ff5ff8", "8777778"},     -- shutter + green indicator
+    {"\138\140\140\140\140\140\133", "8888888", "fffffff"},     -- bottom frame
+}
+
 return icon

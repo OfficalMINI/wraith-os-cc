@@ -234,6 +234,7 @@ register_app("apps/loadouts.lua", "Loadouts")
 register_app("apps/farms.lua",    "Farms")
 register_app("apps/crafting.lua", "Crafting")
 register_app("apps/transport.lua", "Transport")
+register_app("apps/provisioner.lua", "Provisioner")
 
 -- =============================================
 -- Launch Services
