@@ -311,6 +311,7 @@ state.transport = {
     fuel_per_trip = nil,        -- override fuel count (nil = use config default)
     station_schedules = {},     -- {[station_id] = {[idx] = {type, items, period, last_run, enabled}}}
     last_trip_log = {},         -- recent trip log entries
+    trip_durations = {},        -- {[station_id] = {duration_ms, ...}} last 5 per station
     -- Functions (set by transport service)
     register_station = nil,
     set_hub = nil,

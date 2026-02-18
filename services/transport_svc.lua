@@ -79,6 +79,7 @@ function svc.main(state, config, utils)
         saved.fuel_item = tr.fuel_item
         saved.fuel_per_trip = tr.fuel_per_trip
         saved.station_schedules = tr.station_schedules
+        saved.trip_durations = tr.trip_durations
         save_config_file(saved)
     end
 
@@ -769,6 +770,7 @@ function svc.main(state, config, utils)
         tr.fuel_item = saved.fuel_item
         tr.fuel_per_trip = saved.fuel_per_trip
         if saved.station_schedules then tr.station_schedules = saved.station_schedules end
+        if saved.trip_durations then tr.trip_durations = saved.trip_durations end
     end
 
     -- Try to wrap buffer peripheral
@@ -864,12 +866,34 @@ function svc.main(state, config, utils)
 
                 elseif protocol == proto.station_heartbeat and type(msg) == "table" then
                     local station = tr.stations[sender]
+                    local prev_has_train = station and station.has_train
                     if station then
                         station.last_seen = os.clock()
                         station.online = true
                         if msg.has_train ~= nil then station.has_train = msg.has_train end
                         if msg.label then station.label = msg.label end
                         if msg.bay_train_states then station.bay_train_states = msg.bay_train_states end
+                    end
+
+                    -- Record trip duration when train arrives at destination
+                    if msg.has_train and not prev_has_train then
+                        local now = os.clock()
+                        for i = #tr.dispatches, 1, -1 do
+                            local d = tr.dispatches[i]
+                            if d.to_id == sender and d.status == "dispatching" then
+                                local duration_ms = math.floor((now - d.started) * 1000)
+                                if not tr.trip_durations[sender] then
+                                    tr.trip_durations[sender] = {}
+                                end
+                                table.insert(tr.trip_durations[sender], duration_ms)
+                                while #tr.trip_durations[sender] > 5 do
+                                    table.remove(tr.trip_durations[sender], 1)
+                                end
+                                table.remove(tr.dispatches, i)
+                                save_transport_data()
+                                break
+                            end
+                        end
                     end
 
                     -- If hub reports a train arrived and we have collection buffer, import
@@ -1007,6 +1031,54 @@ function svc.main(state, config, utils)
                         else
                             rednet.send(sender, {action = "schedule_run_error", message = "Schedule not found"}, proto.station_command)
                         end
+
+                    elseif msg.action == "get_network_status" then
+                        -- Build station list
+                        local stations_out = {}
+                        for id, s in pairs(tr.stations) do
+                            stations_out[id] = {
+                                label = s.label,
+                                x = s.x or 0, y = s.y or 0, z = s.z or 0,
+                                is_hub = s.is_hub or false,
+                                online = s.online or false,
+                                has_train = s.has_train or false,
+                            }
+                        end
+                        -- Bay summary from hub
+                        local bay_summary = {total = 0, occupied = 0}
+                        local hub = tr.stations[tr.hub_id]
+                        if hub and hub.bay_train_states then
+                            for idx, occ in pairs(hub.bay_train_states) do
+                                bay_summary.total = bay_summary.total + 1
+                                if occ then bay_summary.occupied = bay_summary.occupied + 1 end
+                            end
+                        end
+                        -- Trip stats
+                        local trip_stats_out = {}
+                        for sid, durations in pairs(tr.trip_durations) do
+                            if #durations > 0 then
+                                local sum = 0
+                                for _, d in ipairs(durations) do sum = sum + d end
+                                trip_stats_out[sid] = {
+                                    avg_duration_ms = math.floor(sum / #durations),
+                                    trip_count = #durations,
+                                }
+                            end
+                        end
+                        -- Last trip time from log
+                        for _, entry in ipairs(tr.last_trip_log) do
+                            local sid = entry.station_id
+                            if sid and trip_stats_out[sid] and not trip_stats_out[sid].last_trip_time then
+                                trip_stats_out[sid].last_trip_time = entry.time
+                            end
+                        end
+                        rednet.send(sender, {
+                            action = "network_status",
+                            stations = stations_out,
+                            hub_id = tr.hub_id,
+                            bay_summary = bay_summary,
+                            trip_stats = trip_stats_out,
+                        }, proto.station_command)
                     end
                 end
             end)
