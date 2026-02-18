@@ -160,11 +160,14 @@ state.mon_w, state.mon_h = mon.getSize()
 theme.apply_palette(mon)
 boot_msg("Monitor: " .. state.monitor_name .. " (" .. state.mon_w .. "x" .. state.mon_h .. ")", true)
 
-local modem_side = utils.find_modem()
-if modem_side then
-    rednet.open(modem_side)
-    state.network.modem_side = modem_side
-    boot_msg("Modem: " .. modem_side, true)
+local primary_modem, all_modems = utils.open_all_modems()
+if primary_modem then
+    state.network.modem_side = primary_modem
+    if #all_modems > 1 then
+        boot_msg("Modems: " .. table.concat(all_modems, ", "), true)
+    else
+        boot_msg("Modem: " .. primary_modem, true)
+    end
 else
     boot_msg("No modem found", false)
 end

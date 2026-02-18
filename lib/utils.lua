@@ -238,4 +238,57 @@ function utils.find_modem()
     return wired  -- fallback to wired if no wireless found
 end
 
+-- Open ALL modems (wired + wireless) so both peripheral network
+-- and wireless rednet work simultaneously.
+-- Returns: primary modem name (wireless preferred), list of all opened
+function utils.open_all_modems()
+    local opened = {}
+    local primary = nil
+    local sides = {"back", "top", "left", "right", "bottom", "front"}
+
+    -- Check direct sides first
+    for _, side in ipairs(sides) do
+        if peripheral.getType(side) == "modem" then
+            local modem = peripheral.wrap(side)
+            local is_wireless = modem and modem.isWireless and modem.isWireless()
+            if not rednet.isOpen(side) then
+                rednet.open(side)
+            end
+            table.insert(opened, side)
+            if is_wireless then
+                primary = primary or side
+            end
+        end
+    end
+
+    -- Check network peripherals
+    for _, name in ipairs(peripheral.getNames()) do
+        if peripheral.getType(name) == "modem" then
+            local dominated = false
+            -- Skip if this is a direct side we already opened
+            for _, side in ipairs(sides) do
+                if name == side then dominated = true; break end
+            end
+            if not dominated then
+                local modem = peripheral.wrap(name)
+                local is_wireless = modem and modem.isWireless and modem.isWireless()
+                if not rednet.isOpen(name) then
+                    rednet.open(name)
+                end
+                table.insert(opened, name)
+                if is_wireless then
+                    primary = primary or name
+                end
+            end
+        end
+    end
+
+    -- Fallback: use first opened as primary
+    if not primary and #opened > 0 then
+        primary = opened[1]
+    end
+
+    return primary, opened
+end
+
 return utils
