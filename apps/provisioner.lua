@@ -25,34 +25,34 @@ local CLIENTS = {
     {id = "tree_client",      label = "Tree Farm Turtle", url = "https://raw.githubusercontent.com/OfficalMINI/cc_wraith_tree_client/refs/heads/main/tree_client.lua"},
 }
 
--- Bootstrapper script written to floppy startup.lua
-local BOOTSTRAPPER = [[
--- Wraith OS Provisioner - Auto-install
--- This floppy installs a client to any computer placed on this drive
-local mount = fs.getDir(shell.getRunningProgram())
-local src = "/" .. mount .. "/client.lua"
-if not fs.exists(src) then
-    printError("No client.lua on this disk!")
-    print("Re-provision this floppy from the Wraith Provisioner app.")
-    return
+-- Generate bootstrapper script with embedded label
+local function make_bootstrapper(label)
+    return '-- Wraith OS Provisioner - Auto-install\n'
+        .. '-- This floppy installs a client to any computer placed on this drive\n'
+        .. 'local mount = fs.getDir(shell.getRunningProgram())\n'
+        .. 'local src = "/" .. mount .. "/client.lua"\n'
+        .. 'if not fs.exists(src) then\n'
+        .. '    printError("No client.lua on this disk!")\n'
+        .. '    print("Re-provision this floppy from the Wraith Provisioner app.")\n'
+        .. '    return\n'
+        .. 'end\n'
+        .. 'local f = fs.open(src, "r")\n'
+        .. 'local code = f.readAll()\n'
+        .. 'f.close()\n'
+        .. 'local out = fs.open("/startup.lua", "w")\n'
+        .. 'out.write(code)\n'
+        .. 'out.close()\n'
+        .. 'os.setComputerLabel("' .. label .. ' #" .. os.getComputerID())\n'
+        .. 'term.setBackgroundColor(colors.black)\n'
+        .. 'term.clear()\n'
+        .. 'term.setCursorPos(1, 1)\n'
+        .. 'term.setTextColor(colors.lime)\n'
+        .. 'print("Wraith OS - ' .. label .. ' Installed!")\n'
+        .. 'term.setTextColor(colors.white)\n'
+        .. 'print("Rebooting...")\n'
+        .. 'sleep(1)\n'
+        .. 'os.reboot()\n'
 end
-local f = fs.open(src, "r")
-local code = f.readAll()
-f.close()
-local out = fs.open("/startup.lua", "w")
-out.write(code)
-out.close()
-os.setComputerLabel(nil)
-term.setBackgroundColor(colors.black)
-term.clear()
-term.setCursorPos(1, 1)
-term.setTextColor(colors.lime)
-print("Wraith OS - Client Installed!")
-term.setTextColor(colors.white)
-print("Rebooting...")
-sleep(1)
-os.reboot()
-]]
 
 -- ========================================
 -- State
@@ -144,10 +144,10 @@ local function provision(client)
     local mount = info.mount
     if not mount then return false, "No mount path" end
 
-    -- Write bootstrapper startup.lua
+    -- Write bootstrapper startup.lua (sets computer label to client type + ID)
     local f = fs.open("/" .. mount .. "/startup.lua", "w")
     if not f then return false, "Cannot write startup.lua" end
-    f.write(BOOTSTRAPPER)
+    f.write(make_bootstrapper(client.label))
     f.close()
 
     -- Write actual client code
