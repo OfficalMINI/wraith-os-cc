@@ -64,6 +64,17 @@ if recent >= MAX_RAPID_CRASHES then
     return
 end
 
+-- =============================================
+-- Self-Update Check (before loading OS)
+-- =============================================
+local selfupdate_path = base .. "/system/selfupdate.lua"
+if fs.exists(selfupdate_path) then
+    local su_ok, su_result = pcall(dofile, selfupdate_path)
+    if su_ok and type(su_result) == "table" and su_result.updated then
+        os.reboot()
+    end
+end
+
 -- Run Wraith OS with error protection
 local ok, err = pcall(dofile, base .. "/system/boot.lua")
 
